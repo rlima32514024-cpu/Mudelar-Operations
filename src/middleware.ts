@@ -2,27 +2,29 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 import { UserRole } from '@/types'
 
-// Route → allowed roles mapping
+// Rotas públicas — não requerem autenticação
+const PUBLIC_ROUTES = ['/login', '/auth', '/reset-password', '/update-password']
+
+// Rota → roles com acesso permitido
 const ROUTE_PERMISSIONS: Record<string, UserRole[]> = {
-  '/mario': ['mario', 'admin'],
-  '/sofia': ['sofia', 'admin'],
-  '/susana': ['susana', 'admin'],
-  '/ana': ['ana', 'admin'],
-  '/supervisor': ['supervisor', 'admin'],
-  '/gustavo': ['gustavo', 'admin'],
+  '/mario':              ['mario', 'admin'],
+  '/sofia':              ['sofia', 'admin'],
+  '/susana':             ['susana', 'admin'],
+  '/ana':                ['ana', 'admin'],
+  '/supervisor':         ['supervisor', 'admin'],
+  '/gustavo':            ['gustavo', 'admin'],
+  '/admin':              ['mario', 'admin'],
 }
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
-  // Public routes — no auth required
-  if (pathname.startsWith('/login') || pathname.startsWith('/auth')) {
+  if (PUBLIC_ROUTES.some((r) => pathname.startsWith(r))) {
     return NextResponse.next()
   }
 
   const { supabaseResponse, user, supabase } = await updateSession(request)
 
-  // Not authenticated → redirect to login
   if (!user) {
     const loginUrl = request.nextUrl.clone()
     loginUrl.pathname = '/login'
@@ -30,7 +32,6 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl)
   }
 
-  // Fetch user profile for role check
   const { data: profile } = await supabase
     .from('profiles')
     .select('role')
@@ -39,13 +40,10 @@ export async function middleware(request: NextRequest) {
 
   const userRole = ((profile as { role?: string } | null)?.role ?? 'supervisor') as UserRole
 
-  // Check route-level permissions
   for (const [route, allowedRoles] of Object.entries(ROUTE_PERMISSIONS)) {
     if (pathname.startsWith(route) && !allowedRoles.includes(userRole)) {
-      // Redirect to their default dashboard
-      const defaultRoute = getDefaultRoute(userRole)
       const redirectUrl = request.nextUrl.clone()
-      redirectUrl.pathname = defaultRoute
+      redirectUrl.pathname = getDefaultRoute(userRole)
       return NextResponse.redirect(redirectUrl)
     }
   }
@@ -55,13 +53,13 @@ export async function middleware(request: NextRequest) {
 
 function getDefaultRoute(role: UserRole): string {
   const routes: Record<UserRole, string> = {
-    mario: '/mario',
-    sofia: '/sofia',
-    susana: '/susana',
-    ana: '/ana',
+    mario:      '/mario',
+    sofia:      '/sofia',
+    susana:     '/susana',
+    ana:        '/ana',
     supervisor: '/supervisor',
-    gustavo: '/gustavo',
-    admin: '/mario',
+    gustavo:    '/gustavo',
+    admin:      '/mario',
   }
   return routes[role] ?? '/login'
 }

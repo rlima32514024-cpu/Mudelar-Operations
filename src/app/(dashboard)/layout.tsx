@@ -1,21 +1,25 @@
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { getProfile } from '@/lib/supabase/queries'
+import { ProfileProvider } from '@/components/providers/profile-provider'
+import { Header } from '@/components/layout/header'
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+  const profile = await getProfile()
 
-  if (!user) {
+  if (!profile) {
     redirect('/login')
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {children}
-    </div>
+    <ProfileProvider profile={profile}>
+      <div className="min-h-screen bg-gray-50">
+        <Header />
+        <main>{children}</main>
+      </div>
+    </ProfileProvider>
   )
 }

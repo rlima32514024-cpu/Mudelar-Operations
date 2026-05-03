@@ -140,6 +140,18 @@ export type TipoProblema =
 
 export type ReportadoPor = 'cliente' | 'supervisor' | 'outro'
 
+// ─── Role labels ─────────────────────────────────────────────────────────────
+
+export const ROLE_LABELS: Record<UserRole, string> = {
+  mario:      'Gestor',
+  sofia:      'Apoio ao Cliente',
+  susana:     'Compras',
+  ana:        'Financeiro',
+  supervisor: 'Supervisor de Obra',
+  gustavo:    'Pós-Venda',
+  admin:      'Administrador',
+}
+
 // ─── Responsible Party ────────────────────────────────────────────────────────
 
 export type ResponsiblePartyRole =
