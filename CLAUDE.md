@@ -14,8 +14,8 @@ Sistema de gestão de obras de remodelação (cozinhas e WCs) da empresa Mudelar
 ## Estado atual
 - [x] Fase 1 — Setup, estrutura, Supabase clients, middleware RBAC (CONCLUÍDA)
 - [x] Fase 2 — Schema da base de dados (CONCLUÍDA)
-- [ ] Fase 3 — Autenticação e perfis (PRÓXIMA)
-- [ ] Fase 4 — Páginas por perfil
+- [x] Fase 3 — Autenticação e perfis (CONCLUÍDA)
+- [ ] Fase 4 — Páginas por perfil (PRÓXIMA)
 - [ ] Fase 5 — 16 automações
 - [ ] Fase 6 — Dashboard 15 KPIs
 - [ ] Fase 7 — Funcionalidades avançadas
