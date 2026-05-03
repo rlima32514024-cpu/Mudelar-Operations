@@ -22,6 +22,32 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['profiles']['Row'], 'created_at' | 'updated_at'>
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>
       }
+      responsible_parties: {
+        Row: {
+          id: string
+          name: string
+          email: string | null
+          phone: string | null
+          role: string
+          active: boolean
+          notes: string | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['responsible_parties']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['responsible_parties']['Insert']>
+      }
+      work_models: {
+        Row: {
+          id: string
+          nome_modelo: string
+          prazo_estimado_dias: number
+          categoria: string
+          notas: string | null
+          created_at: string
+        }
+        Insert: Omit<Database['public']['Tables']['work_models']['Row'], 'id' | 'created_at'>
+        Update: Partial<Database['public']['Tables']['work_models']['Insert']>
+      }
       projects: {
         Row: {
           id: string
@@ -75,10 +101,11 @@ export interface Database {
       billing_milestones: {
         Row: {
           id: string
-          milestone_id: string
           project_id: string
+          milestone_id: string
           billing_stage: string
           percentage: number | null
+          amount: number | null
           status: string
           supervisor_marked_ready: boolean
           supervisor_marked_ready_date: string | null
@@ -136,38 +163,38 @@ export interface Database {
         Insert: Omit<Database['public']['Tables']['apontamentos']['Row'], 'id' | 'created_at'>
         Update: Partial<Database['public']['Tables']['apontamentos']['Insert']>
       }
-      responsible_parties: {
-        Row: {
-          id: string
-          name: string
-          email: string | null
-          phone: string | null
-          role: string
-          active: boolean
-          notes: string | null
-          created_at: string
-        }
-        Insert: Omit<Database['public']['Tables']['responsible_parties']['Row'], 'id' | 'created_at'>
-        Update: Partial<Database['public']['Tables']['responsible_parties']['Insert']>
-      }
-      work_models: {
-        Row: {
-          id: string
-          nome_modelo: string
-          prazo_estimado_dias: number
-          categoria: string
-          notas: string | null
-          created_at: string
-        }
-        Insert: Omit<Database['public']['Tables']['work_models']['Row'], 'id' | 'created_at'>
-        Update: Partial<Database['public']['Tables']['work_models']['Insert']>
-      }
     }
     Views: {
-      [_ in never]: never
+      projects_view: {
+        Row: Database['public']['Tables']['projects']['Row'] & {
+          days_since_signature: number | null
+          start_risk_level: string | null
+          total_billed: number
+          total_paid: number
+          outstanding_invoiced: number
+          active_issues_count: number
+          has_affected_payment_issues: boolean
+          ready_to_close: boolean
+        }
+      }
+      billing_milestones_view: {
+        Row: Database['public']['Tables']['billing_milestones']['Row'] & {
+          days_overdue_payment: number | null
+        }
+      }
+      issues_view: {
+        Row: Database['public']['Tables']['issues']['Row'] & {
+          days_open: number | null
+          sla_breach: boolean
+        }
+      }
     }
     Functions: {
       get_next_contract_number: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
+      get_user_role: {
         Args: Record<PropertyKey, never>
         Returns: string
       }
