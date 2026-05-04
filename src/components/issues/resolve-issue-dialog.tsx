@@ -37,7 +37,7 @@ export function ResolveIssueDialog({ issueId }: ResolveIssueDialogProps) {
 
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-50" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-xl z-50 p-6">
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-xl z-50 p-6 max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
             <Dialog.Title className="text-base font-semibold text-gray-900">
               Resolver Problema
@@ -50,6 +50,41 @@ export function ResolveIssueDialog({ issueId }: ResolveIssueDialogProps) {
           </div>
 
           <form action={formAction} className="space-y-4">
+            <div>
+              <label htmlFor="ri-coberto_garantia" className="block text-sm font-medium text-gray-700 mb-1">
+                Coberto por garantia
+              </label>
+              <select
+                id="ri-coberto_garantia"
+                name="coberto_garantia"
+                defaultValue=""
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+              >
+                <option value="">Não definido</option>
+                <option value="sim">Sim</option>
+                <option value="nao">Não</option>
+                <option value="a_avaliar">A avaliar</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="ri-departamento" className="block text-sm font-medium text-gray-700 mb-1">
+                Departamento responsável
+              </label>
+              <select
+                id="ri-departamento"
+                name="departamento_responsavel"
+                defaultValue=""
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+              >
+                <option value="">Não definido</option>
+                <option value="operacao">Operação</option>
+                <option value="compras">Compras</option>
+                <option value="comercial">Comercial</option>
+                <option value="cliente_trata_diretamente">Cliente trata diretamente</option>
+              </select>
+            </div>
+
             <div>
               <label htmlFor="ri-resolution_notes" className="block text-sm font-medium text-gray-700 mb-1">
                 Notas de resolução

@@ -23,7 +23,7 @@ const ISSUE_STATUS_COLORS: Record<IssueStatus, string> = {
 export default async function GustavoDashboard() {
   const supabase = await createClient()
 
-  const [{ data: issues }, { data: projects }] = await Promise.all([
+  const [{ data: issues }, { data: projects }, { data: responsibleParties }] = await Promise.all([
     supabase
       .from('issues_view')
       .select('*')
@@ -33,10 +33,17 @@ export default async function GustavoDashboard() {
       .from('projects')
       .select('id, contract_number, client_name')
       .order('created_at', { ascending: false }),
+    supabase
+      .from('responsible_parties')
+      .select('id, name')
+      .eq('role', 'pos_venda_interna')
+      .eq('active', true)
+      .order('name'),
   ])
 
   const safeIssues = issues ?? []
   const safeProjects = (projects ?? []) as Pick<Project, 'id' | 'contract_number' | 'client_name'>[]
+  const safeResponsibleParties = (responsibleParties ?? []) as { id: string; name: string }[]
 
   const projectsMap = new Map(safeProjects.map((p) => [p.id, `${p.contract_number} — ${p.client_name}`]))
 
@@ -51,7 +58,7 @@ export default async function GustavoDashboard() {
           <h1 className="text-2xl font-bold text-gray-900">Issues &amp; Reclamações</h1>
           <p className="text-sm text-gray-500 mt-0.5">Pós-venda</p>
         </div>
-        <CreateIssueDialog projects={safeProjects} />
+        <CreateIssueDialog projects={safeProjects} responsibleParties={safeResponsibleParties} />
       </div>
 
       {/* Stat cards */}

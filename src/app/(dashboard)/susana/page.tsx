@@ -89,6 +89,9 @@ export default async function SusanaDashboard() {
                         <UpdateProcurementForm
                           projectId={p.id}
                           currentStatus={p.procurement_status as ProcurementStatus | null}
+                          currentListUrl={p.procurement_list_url}
+                          currentListDate={p.procurement_list_uploaded_date}
+                          contractNumber={p.contract_number}
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -142,6 +145,9 @@ export default async function SusanaDashboard() {
                         <UpdateProcurementForm
                           projectId={p.id}
                           currentStatus={p.procurement_status as ProcurementStatus | null}
+                          currentListUrl={p.procurement_list_url}
+                          currentListDate={p.procurement_list_uploaded_date}
+                          contractNumber={p.contract_number}
                         />
                       </td>
                       <td className="px-4 py-3">

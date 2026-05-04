@@ -26,6 +26,8 @@ export async function createIssue(
     const coberto_garantia = (formData.get('coberto_garantia') as string) || null
     const departamento_responsavel = (formData.get('departamento_responsavel') as string) || null
     const afeta_pagamento = formData.get('afeta_pagamento') === 'on'
+    const assigned_to_id = (formData.get('assigned_to_id') as string) || null
+    const data_intervencao_prevista = (formData.get('data_intervencao_prevista') as string) || null
 
     if (!issue_title || !project_id) {
       return { error: 'Título e obra são obrigatórios', success: false }
@@ -42,6 +44,8 @@ export async function createIssue(
         coberto_garantia,
         departamento_responsavel,
         afeta_pagamento,
+        assigned_to_id,
+        data_intervencao_prevista,
         status: 'open',
       })
       .select('id')
@@ -121,6 +125,8 @@ export async function resolveIssue(
     const resolution_notes = (formData.get('resolution_notes') as string)?.trim() || null
     const data_resolucao_real = (formData.get('data_resolucao_real') as string) || null
     const cliente_confirmou_resolucao = formData.get('cliente_confirmou_resolucao') === 'on'
+    const coberto_garantia = (formData.get('coberto_garantia') as string) || null
+    const departamento_responsavel = (formData.get('departamento_responsavel') as string) || null
 
     const { data: issue } = await supabase
       .from('issues')
@@ -134,6 +140,8 @@ export async function resolveIssue(
         resolution_notes,
         data_resolucao_real,
         cliente_confirmou_resolucao,
+        coberto_garantia,
+        departamento_responsavel,
         status: 'resolved',
       })
       .eq('id', issueId)

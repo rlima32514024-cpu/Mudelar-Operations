@@ -8,11 +8,17 @@ import type { Project } from '@/types'
 
 const initialState = { error: null, success: false }
 
-interface CreateIssueDialogProps {
-  projects: Pick<Project, 'id' | 'contract_number' | 'client_name'>[]
+interface ResponsibleParty {
+  id: string
+  name: string
 }
 
-export function CreateIssueDialog({ projects }: CreateIssueDialogProps) {
+interface CreateIssueDialogProps {
+  projects: Pick<Project, 'id' | 'contract_number' | 'client_name'>[]
+  responsibleParties?: ResponsibleParty[]
+}
+
+export function CreateIssueDialog({ projects, responsibleParties = [] }: CreateIssueDialogProps) {
   const [open, setOpen] = useState(false)
   const [state, formAction, isPending] = useActionState(createIssue, initialState)
 
@@ -113,6 +119,72 @@ export function CreateIssueDialog({ projects }: CreateIssueDialogProps) {
                 <option value="falta_de_algo">Falta de algo</option>
                 <option value="outro">Outro</option>
               </select>
+            </div>
+
+            <div>
+              <label htmlFor="ci-coberto_garantia" className="block text-sm font-medium text-gray-700 mb-1">
+                Coberto por garantia
+              </label>
+              <select
+                id="ci-coberto_garantia"
+                name="coberto_garantia"
+                defaultValue=""
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+              >
+                <option value="">Não definido</option>
+                <option value="sim">Sim</option>
+                <option value="nao">Não</option>
+                <option value="a_avaliar">A avaliar</option>
+              </select>
+            </div>
+
+            <div>
+              <label htmlFor="ci-departamento" className="block text-sm font-medium text-gray-700 mb-1">
+                Departamento responsável
+              </label>
+              <select
+                id="ci-departamento"
+                name="departamento_responsavel"
+                defaultValue=""
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+              >
+                <option value="">Não definido</option>
+                <option value="operacao">Operação</option>
+                <option value="compras">Compras</option>
+                <option value="comercial">Comercial</option>
+                <option value="cliente_trata_diretamente">Cliente trata diretamente</option>
+              </select>
+            </div>
+
+            {responsibleParties.length > 0 && (
+              <div>
+                <label htmlFor="ci-assigned_to" className="block text-sm font-medium text-gray-700 mb-1">
+                  Atribuir a
+                </label>
+                <select
+                  id="ci-assigned_to"
+                  name="assigned_to_id"
+                  defaultValue=""
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
+                >
+                  <option value="">Sem atribuição</option>
+                  {responsibleParties.map((rp) => (
+                    <option key={rp.id} value={rp.id}>{rp.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="ci-data_intervencao" className="block text-sm font-medium text-gray-700 mb-1">
+                Data de intervenção prevista
+              </label>
+              <input
+                id="ci-data_intervencao"
+                name="data_intervencao_prevista"
+                type="date"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
+              />
             </div>
 
             <div>

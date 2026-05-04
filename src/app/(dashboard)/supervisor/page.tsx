@@ -7,6 +7,7 @@ import { UpdatePhaseDialog } from '@/components/supervisor/update-phase-dialog'
 import { MarkCompletedButton } from '@/components/supervisor/mark-completed-button'
 import { MarkMilestoneReadyButton } from '@/components/supervisor/mark-milestone-ready-button'
 import { CreateApontamentoDialog } from '@/components/supervisor/create-apontamento-dialog'
+import { VerifyMeasurementsDialog } from '@/components/supervisor/verify-measurements-dialog'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import type { GeneralStatus, CurrentPhase, MilestoneStatus, BillingStage } from '@/types'
 import { MILESTONE_STATUS_LABELS } from '@/types'
@@ -129,6 +130,20 @@ export default async function SupervisorDashboard() {
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* Medições */}
+              {p.general_status === '2_aguarda_retificacao' && !p.measurements_verified && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 flex items-center justify-between">
+                  <p className="text-xs text-blue-700 font-medium">Medições por verificar</p>
+                  <VerifyMeasurementsDialog projectId={p.id} contractNumber={p.contract_number} />
+                </div>
+              )}
+              {p.measurements_verified && p.measurements_verified_date && (
+                <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-xs text-green-700">
+                  ✓ Medições verificadas em {new Date(p.measurements_verified_date).toLocaleDateString('pt-PT')}
+                  {p.measurements_notes && <span className="text-gray-500 ml-1">— {p.measurements_notes}</span>}
                 </div>
               )}
 

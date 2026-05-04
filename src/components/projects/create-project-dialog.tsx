@@ -4,6 +4,7 @@ import { useActionState, useState, useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Plus, X } from 'lucide-react'
 import { createProject } from '@/app/actions/projects'
+import { FileUploadInput } from '@/components/shared/file-upload-input'
 import type { WorkModel, ResponsibleParty } from '@/types'
 
 const initialState = { error: null, success: false }
@@ -159,6 +160,13 @@ export function CreateProjectDialog({ workModels }: CreateProjectDialogProps) {
                 </select>
               </div>
             )}
+
+            <FileUploadInput
+              name="contract_document_url"
+              storagePath="contracts"
+              accept=".pdf,.doc,.docx"
+              label="Documento de contrato"
+            />
 
             {state.error && (
               <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{state.error}</p>
