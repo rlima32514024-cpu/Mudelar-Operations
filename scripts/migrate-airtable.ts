@@ -1,15 +1,13 @@
 /**
  * Migração Airtable → Supabase
  *
- * Lê os CSVs exportados do Airtable que estão na raiz do projecto
- * e insere os dados no Supabase respeitando a ordem das foreign keys.
- *
- * Ordem:
+ * Requer que os grants estejam aplicados (20260504000003_grants.sql).
+ * Ordem de inserção respeitando FK:
  *   1. work_models
  *   2. responsible_parties
- *   3. projects          (FK → work_models, responsible_parties)
- *   4. billing_milestones (auto-criados por trigger; apenas atualiza do CSV)
- *   5. issues            (FK → projects, responsible_parties)
+ *   3. projects          (trigger auto-cria billing_milestones)
+ *   4. billing_milestones (update com dados do CSV)
+ *   5. issues
  *   6. apontamentos      (ignorados — sem projecto ligado no export)
  *
  * Uso:
@@ -23,22 +21,21 @@ import { resolve } from 'path'
 // ── env ───────────────────────────────────────────────────────────────────────
 
 function loadEnv() {
-  const envPath = resolve(process.cwd(), '.env.local')
-  let raw: string
+  const path = resolve(process.cwd(), '.env.local')
   try {
-    raw = readFileSync(envPath, 'utf-8')
+    const raw = readFileSync(path, 'utf-8')
+    for (const line of raw.split(/\r?\n/)) {
+      const t = line.trim()
+      if (!t || t.startsWith('#')) continue
+      const eq = t.indexOf('=')
+      if (eq === -1) continue
+      const key = t.slice(0, eq).trim()
+      const val = t.slice(eq + 1).trim().replace(/^["']|["']$/g, '')
+      if (!process.env[key]) process.env[key] = val
+    }
   } catch {
-    console.error('❌  Não encontrei .env.local em', envPath)
+    console.error('❌  Não encontrei .env.local em', path)
     process.exit(1)
-  }
-  for (const line of raw.split('\n')) {
-    const t = line.trim()
-    if (!t || t.startsWith('#')) continue
-    const eq = t.indexOf('=')
-    if (eq === -1) continue
-    const key = t.slice(0, eq).trim()
-    const val = t.slice(eq + 1).trim().replace(/^["']|["']$/g, '')
-    if (!process.env[key]) process.env[key] = val
   }
 }
 
@@ -75,13 +72,11 @@ function parseCSV(content: string): Record<string, string>[] {
 }
 
 function csvFile(filename: string): Record<string, string>[] {
-  const content = readFileSync(resolve(process.cwd(), filename), 'utf-8')
-  return parseCSV(content)
+  return parseCSV(readFileSync(resolve(process.cwd(), filename), 'utf-8'))
 }
 
-// ── field converters ──────────────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────────
 
-// "9/4/2026" → "2026-04-09"
 function parseDate(s: string): string | null {
   if (!s) return null
   const parts = s.split('/')
@@ -90,7 +85,6 @@ function parseDate(s: string): string | null {
   return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
 }
 
-// "€1.234,56" or "1234.56" → 1234.56
 function parseCurrency(s: string): number | null {
   if (!s) return null
   const n = parseFloat(s.replace(/[€\s]/g, '').replace(',', '.'))
@@ -98,8 +92,11 @@ function parseCurrency(s: string): number | null {
 }
 
 function parseBool(s: string): boolean {
-  return s.toLowerCase() === 'checked' || s.toLowerCase() === 'true' || s === '1'
+  const l = s.toLowerCase()
+  return l === 'checked' || l === 'true' || l === '1' || l === 'yes'
 }
+
+function orNull(s: string): string | null { return s.trim() || null }
 
 // ── value maps ────────────────────────────────────────────────────────────────
 
@@ -121,12 +118,12 @@ const PROCUREMENT_STATUS: Record<string, string> = {
 }
 
 const MILESTONE_STATUS: Record<string, string> = {
-  'Not ready':             'not_ready',
-  'Ready for validation':  'ready_for_validation',
-  'Validated':             'validated',
-  'Invoiced':              'invoiced',
-  'Paid':                  'paid',
-  'Debt':                  'debt',
+  'Not ready':            'not_ready',
+  'Ready for validation': 'ready_for_validation',
+  'Validated':            'validated',
+  'Invoiced':             'invoiced',
+  'Paid':                 'paid',
+  'Debt':                 'debt',
 }
 
 const ISSUE_STATUS: Record<string, string> = {
@@ -154,14 +151,14 @@ const COBERTO_GARANTIA: Record<string, string> = {
 }
 
 const DEPARTAMENTO: Record<string, string> = {
-  'Operação':                     'operacao',
-  'Compras':                      'compras',
-  'Comercial':                    'comercial',
-  'Cliente trata directamente':   'cliente_trata_diretamente',
+  'Operação':                   'operacao',
+  'Compras':                    'compras',
+  'Comercial':                  'comercial',
+  'Cliente trata directamente': 'cliente_trata_diretamente',
 }
 
-// ── responsible_parties role inference ───────────────────────────────────────
-// Email → role (highest priority)
+// ── role inference ────────────────────────────────────────────────────────────
+
 const ROLE_BY_EMAIL: Record<string, string> = {
   'financeiro@bmlar.pt':        'financeiro',
   'compras@bmlar.pt':           'compras',
@@ -172,7 +169,7 @@ const ROLE_BY_EMAIL: Record<string, string> = {
   'gustavoprsilva99@gmail.com': 'pos_venda_interna',
   'tiago.belchior@bmlar.pt':    'supervisor',
 }
-// Name → role (fallback)
+
 const ROLE_BY_NAME: Record<string, string> = {
   'Crispim': 'equipa_obras',
   'Otaniel': 'equipa_obras',
@@ -200,51 +197,51 @@ async function main() {
     process.exit(1)
   }
 
-  const supabase = createClient(url, key, { auth: { persistSession: false } })
+  const sb = createClient(url, key, { auth: { persistSession: false } })
 
-  // ── guard: idempotência ────────────────────────────────────────────────────
-  const { data: existing } = await supabase
+  // ── guard: idempotência ──────────────────────────────────────────────────
+  const { data: existing } = await sb
     .from('projects')
     .select('id')
     .eq('contract_number', '3002')
     .maybeSingle()
 
   if (existing) {
-    console.log('⚠️  Projeto 3002 já existe — migração já foi executada. A sair.')
+    console.log('⚠️  Projecto 3002 já existe — migração já executada. A sair.')
     process.exit(0)
   }
 
-  // ── 1. work_models ─────────────────────────────────────────────────────────
+  // ── 1. work_models ───────────────────────────────────────────────────────
   console.log('\n1/5  work_models…')
   const modelRows = csvFile('Modelos de obra-Grid view.csv')
-    .filter(r => r['Prazo estimado (dias)'] && r['Categoria'])  // skip rows sem prazo/categoria
+    .filter(r => r['Prazo estimado (dias)'] && r['Categoria'])
 
-  const { data: models, error: modelsErr } = await supabase
+  const { data: models, error: modelsErr } = await sb
     .from('work_models')
     .insert(modelRows.map(r => ({
       nome_modelo:         r['Nome do modelo'],
       prazo_estimado_dias: parseInt(r['Prazo estimado (dias)'], 10),
       categoria:           r['Categoria'] as 'WC' | 'Cozinha',
-      notas:               r['Notas'] || null,
+      notas:               orNull(r['Notas']),
     })))
     .select('id, nome_modelo')
 
   if (modelsErr) { console.error('  ❌', modelsErr.message); process.exit(1) }
   const modelByName = new Map(models!.map(m => [m.nome_modelo, m.id as string]))
-  console.log(`  ✓  ${models!.length} modelos inseridos`)
+  console.log(`  ✓  ${models!.length} modelos (1 ignorado — sem prazo/categoria)`)
 
-  // ── 2. responsible_parties ─────────────────────────────────────────────────
+  // ── 2. responsible_parties ───────────────────────────────────────────────
   console.log('\n2/5  responsible_parties…')
   const partyRows = csvFile('Responsible Parties-Grid view.csv')
 
-  const { data: parties, error: partiesErr } = await supabase
+  const { data: parties, error: partiesErr } = await sb
     .from('responsible_parties')
     .insert(partyRows.map(r => ({
       name:  r['Name'],
-      email: r['Email'] || null,
-      phone: r['Phone'] || null,
+      email: orNull(r['Email']),
+      phone: orNull(r['Phone']),
       role:  inferRole(r),
-      notes: r['Notes'] || null,
+      notes: orNull(r['Notes']),
     })))
     .select('id, name, email')
 
@@ -253,38 +250,38 @@ async function main() {
   const partyByEmail = new Map(
     parties!.filter(p => p.email).map(p => [p.email as string, p.id as string])
   )
-  console.log(`  ✓  ${parties!.length} intervenientes inseridos`)
+  console.log(`  ✓  ${parties!.length} intervenientes`)
 
-  // ── 3. projects ────────────────────────────────────────────────────────────
+  // ── 3. projects ──────────────────────────────────────────────────────────
   console.log('\n3/5  projects…')
   const projectRows = csvFile('Projects-Geral.csv')
   const insertedProjects: Array<{ id: string; contract_number: string }> = []
+  const validWorkTypes = ['Kitchen', 'Bathroom', 'Both']
 
   for (const r of projectRows) {
     const contractNumber = r['Contract number (MD)']
     if (!contractNumber) continue
 
-    const supervisorName  = r['Initial supervisor name'] || r['Assigned supervisor'] || null
-    const supervisorId    = supervisorName ? (partyByName.get(supervisorName) ?? null) : null
-    const assignedEmail   = r['Assigned supervisor email'] || null
-    const assignedId      = assignedEmail ? (partyByEmail.get(assignedEmail) ?? null) : null
-    const modelId         = r['Work model'] ? (modelByName.get(r['Work model']) ?? null) : null
-
-    const workType = r['Work type'] as 'Kitchen' | 'Bathroom' | 'Both'
-    const validWorkTypes = ['Kitchen', 'Bathroom', 'Both']
+    const workType = r['Work type']
     if (!validWorkTypes.includes(workType)) {
-      console.warn(`  ⚠️  Projecto ${contractNumber} tem work_type inválido: "${workType}" — a ignorar`)
+      console.warn(`  ⚠️  ${contractNumber} — work_type inválido: "${workType}" — ignorado`)
       continue
     }
 
-    const { data, error } = await supabase
+    const supervisorName = r['Initial supervisor name'] || r['Assigned supervisor'] || null
+    const supervisorId   = supervisorName ? (partyByName.get(supervisorName) ?? null) : null
+    const assignedEmail  = r['Assigned supervisor email'] || null
+    const assignedId     = assignedEmail ? (partyByEmail.get(assignedEmail.toLowerCase()) ?? null) : null
+    const modelId        = r['Work model'] ? (modelByName.get(r['Work model']) ?? null) : null
+
+    const { data, error } = await sb
       .from('projects')
       .insert({
         contract_number:                contractNumber,
         client_name:                    r['Client name'] || '(sem nome)',
-        client_phone:                   r['Client phone'] || null,
-        client_email:                   r['Client email'] || null,
-        address:                        r['Address'] || null,
+        client_phone:                   orNull(r['Client phone']),
+        client_email:                   orNull(r['Client email']),
+        address:                        orNull(r['Address']),
         work_type:                      workType,
         work_model_id:                  modelId,
         contract_signature_date:        parseDate(r['Contract signature date']),
@@ -300,15 +297,15 @@ async function main() {
         procurement_list_uploaded_date: parseDate(r['Procurement list uploaded date']),
         measurements_verified:          parseBool(r['Measurement verified']),
         measurements_verified_date:     parseDate(r['Measurements verified date']),
-        measurements_notes:             r['Measurement notes'] || null,
+        measurements_notes:             orNull(r['Measurement notes']),
         data_retificacao_marcada:       parseDate(r['Data de retificação marcada']),
-        notes_phase_1:                  r['Notes — Phase 1 (Preparação)'] || null,
-        notes_phase_2:                  r['Notes — Phase 2 (Infraestruturas)'] || null,
-        notes_phase_3:                  r['Notes — Phase 3 (Revestimentos)'] || null,
-        notes_phase_4:                  r['Notes — Phase 4 (Montagem Final)'] || null,
+        notes_phase_1:                  orNull(r['Notes — Phase 1 (Preparação)']),
+        notes_phase_2:                  orNull(r['Notes — Phase 2 (Infraestruturas)']),
+        notes_phase_3:                  orNull(r['Notes — Phase 3 (Revestimentos)']),
+        notes_phase_4:                  orNull(r['Notes — Phase 4 (Montagem Final)']),
         has_extras:                     parseBool(r['Has extras']),
-        extras_descricao:               r['Extras de obra — descrição'] || null,
-        orcamento_extra_descricao:      r['Orçamento extra para cliente — descrição'] || null,
+        extras_descricao:               orNull(r['Extras de obra — descrição']),
+        orcamento_extra_descricao:      orNull(r['Orçamento extra para cliente — descrição']),
         orcamento_extra_valor:          parseCurrency(r['Orçamento extra — valor acordado']),
         fatura_equipa_enviada_ana:      parseBool(r['Fatura equipa enviada à Ana']),
         fatura_equipa_paga:             parseBool(r['Fatura equipa paga']),
@@ -316,14 +313,14 @@ async function main() {
       .select('id, contract_number')
       .single()
 
-    if (error) { console.error(`  ❌  Projecto ${contractNumber}:`, error.message); process.exit(1) }
+    if (error) { console.error(`  ❌  ${contractNumber}:`, error.message); process.exit(1) }
     insertedProjects.push(data!)
-    console.log(`  ✓  ${contractNumber} — billing milestones auto-criados por trigger`)
+    console.log(`  ✓  ${contractNumber} — billing_milestones auto-criados por trigger`)
   }
 
   const projectByContract = new Map(insertedProjects.map(p => [p.contract_number, p.id]))
 
-  // ── 4. billing_milestones — actualizar do CSV ──────────────────────────────
+  // ── 4. billing_milestones ────────────────────────────────────────────────
   console.log('\n4/5  billing_milestones (update do CSV)…')
   const milestoneRows = csvFile('Billing Milestones-Grid view.csv')
   let milestonesUpdated = 0
@@ -333,21 +330,18 @@ async function main() {
     if (!linked) continue
     const projectId = projectByContract.get(linked)
     if (!projectId) continue
-
     const stage = r['Billing stage']
     if (!stage) continue
     const milestoneId = stage === 'Start' ? 'start' : stage === 'Final' ? 'final' : 'extras'
 
-    const patch: Record<string, unknown> = {
-      status: MILESTONE_STATUS[r['Status']] ?? 'not_ready',
-    }
+    const patch: Record<string, unknown> = { status: MILESTONE_STATUS[r['Status']] ?? 'not_ready' }
     const amount = parseCurrency(r['Amount'])
-    if (amount) patch.amount = amount
-    if (r['Invoice number'])          patch.invoice_number             = r['Invoice number']
-    if (r['Invoice issued date'])     patch.invoice_issued_date        = parseDate(r['Invoice issued date'])
-    if (r['Payment due date'])        patch.payment_due_date           = parseDate(r['Payment due date'])
-    if (r['Payment received date'])   patch.payment_received_date      = parseDate(r['Payment received date'])
-    if (r['Notes'])                   patch.notes                      = r['Notes']
+    if (amount)                           patch.amount                      = amount
+    if (orNull(r['Invoice number']))      patch.invoice_number              = r['Invoice number']
+    if (r['Invoice issued date'])         patch.invoice_issued_date         = parseDate(r['Invoice issued date'])
+    if (r['Payment due date'])            patch.payment_due_date            = parseDate(r['Payment due date'])
+    if (r['Payment received date'])       patch.payment_received_date       = parseDate(r['Payment received date'])
+    if (orNull(r['Notes']))               patch.notes                       = r['Notes']
     if (parseBool(r['Supervisor marked ready'])) {
       patch.supervisor_marked_ready      = true
       patch.supervisor_marked_ready_date = parseDate(r['Supervisor marked ready date'])
@@ -357,7 +351,7 @@ async function main() {
       patch.manager_validated_date = parseDate(r['Manager validated date'])
     }
 
-    const { error } = await supabase
+    const { error } = await sb
       .from('billing_milestones')
       .update(patch)
       .eq('project_id', projectId)
@@ -368,7 +362,7 @@ async function main() {
   }
   console.log(`  ✓  ${milestonesUpdated} marcos actualizados`)
 
-  // ── 5. issues ──────────────────────────────────────────────────────────────
+  // ── 5. issues ────────────────────────────────────────────────────────────
   console.log('\n5/5  issues…')
   const issueRows = csvFile('Issues-Pós-venda - Sofia.csv')
   let issuesInserted = 0
@@ -382,57 +376,53 @@ async function main() {
     const assignedName = r['Assigned to name'] || r['Assigned to'] || null
     const assignedId   = assignedName ? (partyByName.get(assignedName) ?? null) : null
     const reportedDate = parseDate(r['Reported date']) ?? new Date().toISOString().slice(0, 10)
-
-    const priority = r['Priority'] as 'Low' | 'Normal' | 'High' | 'Urgent'
     const validPriorities = ['Low', 'Normal', 'High', 'Urgent']
-    const safePriority = validPriorities.includes(priority) ? priority : 'Normal'
+    const priority = validPriorities.includes(r['Priority']) ? r['Priority'] : 'Normal'
 
-    const { error } = await supabase
-      .from('issues')
-      .insert({
-        issue_title:                 r['Issue title'] || 'Sem título',
-        project_id:                  projectId,
-        reported_date:               reportedDate,
-        priority:                    safePriority,
-        status:                      ISSUE_STATUS[r['Status']] ?? 'open',
-        assigned_to_id:              assignedId,
-        description:                 r['Description'] || null,
-        resolution_notes:            r['Resolution notes'] || null,
-        resolution_date:             parseDate(r['Resolution date']),
-        tipo_reclamacao:             TIPO_RECLAMACAO[r['Tipo de reclamação']] ?? null,
-        coberto_garantia:            COBERTO_GARANTIA[r['Coberto por garantia/contrato']] ?? null,
-        departamento_responsavel:    DEPARTAMENTO[r['Departamento responsável']] ?? null,
-        data_intervencao_prevista:   parseDate(r['Data de intervenção prevista']),
-        data_resolucao_real:         parseDate(r['Data de resolução real']),
-        cliente_confirmou_resolucao: parseBool(r['Cliente confirmou resolução']),
-        afeta_pagamento:             parseBool(r['Afeta pagamento']),
-      })
+    const { error } = await sb.from('issues').insert({
+      issue_title:                 r['Issue title'] || 'Sem título',
+      project_id:                  projectId,
+      reported_date:               reportedDate,
+      priority,
+      status:                      ISSUE_STATUS[r['Status']] ?? 'open',
+      assigned_to_id:              assignedId,
+      description:                 orNull(r['Description']),
+      resolution_notes:            orNull(r['Resolution notes']),
+      resolution_date:             parseDate(r['Resolution date']),
+      tipo_reclamacao:             TIPO_RECLAMACAO[r['Tipo de reclamação']] ?? null,
+      coberto_garantia:            COBERTO_GARANTIA[r['Coberto por garantia/contrato']] ?? null,
+      departamento_responsavel:    DEPARTAMENTO[r['Departamento responsável']] ?? null,
+      data_intervencao_prevista:   parseDate(r['Data de intervenção prevista']),
+      data_resolucao_real:         parseDate(r['Data de resolução real']),
+      cliente_confirmou_resolucao: parseBool(r['Cliente confirmou resolução']),
+      afeta_pagamento:             parseBool(r['Afeta pagamento']),
+    })
 
     if (error) console.warn(`  ⚠️  Issue "${r['Issue title']}":`, error.message)
     else issuesInserted++
   }
-  console.log(`  ✓  ${issuesInserted} issues inseridos`)
+  console.log(`  ✓  ${issuesInserted} issues`)
 
-  // ── sumário ────────────────────────────────────────────────────────────────
-  const apontRows  = csvFile('Apontamentos Obra-Grid view.csv')
-  const orphanApon = apontRows.filter(r => !r['Linked project'])
-  if (orphanApon.length > 0) {
-    console.log(`\nℹ️  ${orphanApon.length} apontamento(s) sem projecto ligado no Airtable — não importados:`)
-    orphanApon.forEach(r => console.log(`     • "${r['Apontamento title']}"  (${r['Data do apontamento']})`))
+  // ── apontamentos (sem projecto ligado) ────────────────────────────────────
+  const orphans = csvFile('Apontamentos Obra-Grid view.csv').filter(r => !r['Linked project'])
+  if (orphans.length > 0) {
+    console.log(`\nℹ️  ${orphans.length} apontamento(s) sem projecto ligado no Airtable — não importados:`)
+    orphans.forEach(r => console.log(`     • "${r['Apontamento title']}"  (${r['Data do apontamento']})`))
   }
 
-  console.log('\n✅  Migração concluída com sucesso!')
-  console.log('─'.repeat(42))
-  console.log(`   work_models         ${models!.length}`)
-  console.log(`   responsible_parties ${parties!.length}`)
-  console.log(`   projects            ${insertedProjects.length}`)
-  console.log(`   billing_milestones  ${milestonesUpdated} actualizados`)
-  console.log(`   issues              ${issuesInserted}`)
-  console.log(`   apontamentos        0 (orphans, ver acima)`)
-  console.log('─'.repeat(42))
+  // ── sumário ───────────────────────────────────────────────────────────────
+  console.log('\n✅  Migração concluída!')
+  console.log('─'.repeat(44))
+  console.log(`   work_models          ${models!.length}`)
+  console.log(`   responsible_parties  ${parties!.length}`)
+  console.log(`   projects             ${insertedProjects.length}`)
+  console.log(`   billing_milestones   ${milestonesUpdated} actualizados (${insertedProjects.length * 2} auto-criados)`)
+  console.log(`   issues               ${issuesInserted}`)
+  console.log(`   apontamentos         0 (orphans)`)
+  console.log('─'.repeat(44))
 }
 
 main().catch(err => {
-  console.error('\n💥  Fatal:', err)
+  console.error('\n💥  Fatal:', (err as Error).message)
   process.exit(1)
 })
