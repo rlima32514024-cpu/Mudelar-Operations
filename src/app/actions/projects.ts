@@ -3,7 +3,17 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/supabase/queries'
+import {
+  emailObraCriada,
+  emailSupervisorAtribuido,
+  emailListaComprasSubmetida,
+  emailComprasRecebidas,
+  emailObraIniciada,
+  emailFaseAtualizada,
+  emailObraConcluida,
+} from '@/lib/email'
 import type { Database } from '@/types/database'
+import type { CurrentPhase } from '@/types'
 
 type ProjectUpdate = Database['public']['Tables']['projects']['Update']
 
@@ -66,6 +76,17 @@ export async function createProject(
 
     revalidatePath('/mario')
     revalidatePath('/sofia')
+
+    // Automação 1: obra criada → mario
+    void emailObraCriada({
+      projectId: data.id,
+      contractNumber,
+      clientName: client_name,
+      address: address ?? null,
+      workType: work_type,
+      totalValue: total_project_value,
+    })
+
     return { error: null, success: true, projectId: data.id }
   } catch (e: unknown) {
     return { error: (e as Error).message, success: false }
@@ -98,6 +119,24 @@ export async function assignSupervisor(
 
     revalidatePath('/mario')
     revalidatePath('/obras')
+
+    // Automações 2+3: supervisor atribuído + retificação marcada → supervisor
+    if (initial_supervisor_id) {
+      const [{ data: project }, { data: supervisor }] = await Promise.all([
+        supabase.from('projects').select('contract_number, client_name, address').eq('id', projectId).single(),
+        supabase.from('responsible_parties').select('name, email').eq('id', initial_supervisor_id).single(),
+      ])
+      void emailSupervisorAtribuido({
+        projectId,
+        contractNumber: project?.contract_number ?? '',
+        clientName: project?.client_name ?? '',
+        address: project?.address ?? null,
+        supervisorEmail: supervisor?.email ?? null,
+        supervisorName: supervisor?.name ?? null,
+        dataRetificacao: data_retificacao_marcada,
+      })
+    }
+
     return { error: null, success: true }
   } catch (e: unknown) {
     return { error: (e as Error).message, success: false }
@@ -135,6 +174,22 @@ export async function assignTeam(
 
     revalidatePath('/mario')
     revalidatePath('/obras')
+
+    // Automação 7: obra iniciada → cliente
+    const { data: project } = await supabase
+      .from('projects')
+      .select('contract_number, client_name, client_email')
+      .eq('id', projectId)
+      .single()
+
+    void emailObraIniciada({
+      projectId,
+      contractNumber: project?.contract_number ?? '',
+      clientName: project?.client_name ?? '',
+      clientEmail: project?.client_email ?? null,
+      plannedStartDate: planned_start_date,
+    })
+
     return { error: null, success: true }
   } catch (e: unknown) {
     return { error: (e as Error).message, success: false }
@@ -174,6 +229,46 @@ export async function updateProcurement(
 
     revalidatePath('/susana')
     revalidatePath('/mario')
+
+    if (procurement_status === 'submitted') {
+      // Automação 5: lista de compras submetida → susana
+      const { data: project } = await supabase
+        .from('projects')
+        .select('contract_number, client_name')
+        .eq('id', projectId)
+        .single()
+      void emailListaComprasSubmetida({
+        projectId,
+        contractNumber: project?.contract_number ?? '',
+        clientName: project?.client_name ?? '',
+        listUrl: procurement_list_url,
+      })
+    } else if (procurement_status === 'received') {
+      // Automação 6: compras recebidas → mario + supervisor
+      const { data: project } = await supabase
+        .from('projects')
+        .select('contract_number, client_name, initial_supervisor_id')
+        .eq('id', projectId)
+        .single()
+
+      let supervisorEmail: string | null = null
+      if (project?.initial_supervisor_id) {
+        const { data: supervisor } = await supabase
+          .from('responsible_parties')
+          .select('email')
+          .eq('id', project.initial_supervisor_id)
+          .single()
+        supervisorEmail = supervisor?.email ?? null
+      }
+
+      void emailComprasRecebidas({
+        projectId,
+        contractNumber: project?.contract_number ?? '',
+        clientName: project?.client_name ?? '',
+        supervisorEmail,
+      })
+    }
+
     return { error: null, success: true }
   } catch (e: unknown) {
     return { error: (e as Error).message, success: false }
@@ -190,7 +285,7 @@ export async function updatePhase(
     const profile = await getProfile()
     if (!profile) return { error: 'Não autenticado', success: false }
 
-    const current_phase = formData.get('current_phase') as string
+    const current_phase = formData.get('current_phase') as CurrentPhase
     const notes = (formData.get('notes') as string)?.trim() || null
 
     const updateData: ProjectUpdate = { current_phase }
@@ -211,6 +306,22 @@ export async function updatePhase(
 
     revalidatePath('/supervisor')
     revalidatePath('/obras')
+
+    // Automação 8: fase atualizada → mario
+    if (current_phase !== 'not_started' && current_phase !== 'completed') {
+      const { data: project } = await supabase
+        .from('projects')
+        .select('contract_number, client_name')
+        .eq('id', projectId)
+        .single()
+      void emailFaseAtualizada({
+        projectId,
+        contractNumber: project?.contract_number ?? '',
+        clientName: project?.client_name ?? '',
+        phase: current_phase,
+      })
+    }
+
     return { error: null, success: true }
   } catch (e: unknown) {
     return { error: (e as Error).message, success: false }
@@ -238,6 +349,21 @@ export async function markCompleted(projectId: string): Promise<ActionResult> {
 
     revalidatePath('/supervisor')
     revalidatePath('/mario')
+
+    // Automação 9: obra concluída → cliente + mario
+    const { data: project } = await supabase
+      .from('projects')
+      .select('contract_number, client_name, client_email')
+      .eq('id', projectId)
+      .single()
+
+    void emailObraConcluida({
+      projectId,
+      contractNumber: project?.contract_number ?? '',
+      clientName: project?.client_name ?? '',
+      clientEmail: project?.client_email ?? null,
+    })
+
     return { error: null, success: true }
   } catch (e: unknown) {
     return { error: (e as Error).message, success: false }

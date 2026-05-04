@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/supabase/queries'
+import { emailIssueUrgente, emailIssueResolvido } from '@/lib/email'
 import type { ActionResult } from './projects'
 import type { IssueStatus } from '@/types'
 
@@ -52,6 +53,24 @@ export async function createIssue(
     revalidatePath('/sofia')
     revalidatePath('/mario')
     revalidatePath(`/obras/${project_id}`)
+
+    // Automação 14: issue urgente ou alta prioridade → mario + gustavo
+    if (priority === 'High' || priority === 'Urgent') {
+      const { data: project } = await supabase
+        .from('projects')
+        .select('contract_number, client_name')
+        .eq('id', project_id)
+        .single()
+      void emailIssueUrgente({
+        projectId: project_id,
+        contractNumber: project?.contract_number ?? '',
+        clientName: project?.client_name ?? '',
+        issueTitle: issue_title,
+        priority,
+        description,
+      })
+    }
+
     return { error: null, success: true, issueId: data.id }
   } catch (e: unknown) {
     return { error: (e as Error).message, success: false }
@@ -105,7 +124,7 @@ export async function resolveIssue(
 
     const { data: issue } = await supabase
       .from('issues')
-      .select('project_id')
+      .select('project_id, issue_title')
       .eq('id', issueId)
       .single()
 
@@ -124,6 +143,24 @@ export async function resolveIssue(
     revalidatePath('/gustavo')
     revalidatePath('/mario')
     if (issue?.project_id) revalidatePath(`/obras/${issue.project_id}`)
+
+    // Automação 15: issue resolvido → cliente
+    if (issue?.project_id) {
+      const { data: project } = await supabase
+        .from('projects')
+        .select('contract_number, client_name, client_email')
+        .eq('id', issue.project_id)
+        .single()
+      void emailIssueResolvido({
+        projectId: issue.project_id,
+        contractNumber: project?.contract_number ?? '',
+        clientName: project?.client_name ?? '',
+        clientEmail: project?.client_email ?? null,
+        issueTitle: issue.issue_title ?? '',
+        resolutionNotes: resolution_notes,
+      })
+    }
+
     return { error: null, success: true }
   } catch (e: unknown) {
     return { error: (e as Error).message, success: false }

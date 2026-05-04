@@ -3,6 +3,12 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/supabase/queries'
+import {
+  emailMarcoPronto,
+  emailMarcoValidado,
+  emailFaturaEmitida,
+  emailPagamentoRecebido,
+} from '@/lib/email'
 import type { ActionResult } from './projects'
 
 export async function markMilestoneReady(
@@ -31,6 +37,21 @@ export async function markMilestoneReady(
     revalidatePath('/ana')
     revalidatePath('/mario')
     revalidatePath(`/obras/${projectId}`)
+
+    // Automação 10: marco pronto → mario + ana
+    const [{ data: project }, { data: milestone }] = await Promise.all([
+      supabase.from('projects').select('contract_number, client_name').eq('id', projectId).single(),
+      supabase.from('billing_milestones').select('billing_stage, amount').eq('id', milestoneId).single(),
+    ])
+
+    void emailMarcoPronto({
+      projectId,
+      contractNumber: project?.contract_number ?? '',
+      clientName: project?.client_name ?? '',
+      billingStage: milestone?.billing_stage ?? '',
+      amount: milestone?.amount ?? null,
+    })
+
     return { error: null, success: true }
   } catch (e: unknown) {
     return { error: (e as Error).message, success: false }
@@ -62,6 +83,21 @@ export async function validateMilestone(
     revalidatePath('/ana')
     revalidatePath('/mario')
     revalidatePath(`/obras/${projectId}`)
+
+    // Automação 11: marco validado → ana
+    const [{ data: project }, { data: milestone }] = await Promise.all([
+      supabase.from('projects').select('contract_number, client_name').eq('id', projectId).single(),
+      supabase.from('billing_milestones').select('billing_stage, amount').eq('id', milestoneId).single(),
+    ])
+
+    void emailMarcoValidado({
+      projectId,
+      contractNumber: project?.contract_number ?? '',
+      clientName: project?.client_name ?? '',
+      billingStage: milestone?.billing_stage ?? '',
+      amount: milestone?.amount ?? null,
+    })
+
     return { error: null, success: true }
   } catch (e: unknown) {
     return { error: (e as Error).message, success: false }
@@ -85,10 +121,9 @@ export async function updateMilestone(
     const payment_received_date = (formData.get('payment_received_date') as string) || null
     const notes = (formData.get('notes') as string)?.trim() || null
 
-    // Fetch current status
     const { data: current } = await supabase
       .from('billing_milestones')
-      .select('status')
+      .select('status, billing_stage, amount')
       .eq('id', milestoneId)
       .single()
 
@@ -117,6 +152,43 @@ export async function updateMilestone(
     revalidatePath('/ana')
     revalidatePath('/mario')
     revalidatePath(`/obras/${projectId}`)
+
+    const billingStage = current?.billing_stage ?? ''
+    const amount = current?.amount ?? null
+
+    if (payment_received_date) {
+      // Automação 13: pagamento recebido → mario
+      const { data: project } = await supabase
+        .from('projects')
+        .select('contract_number, client_name')
+        .eq('id', projectId)
+        .single()
+      void emailPagamentoRecebido({
+        projectId,
+        contractNumber: project?.contract_number ?? '',
+        clientName: project?.client_name ?? '',
+        billingStage,
+        amount,
+      })
+    } else if (invoice_issued_date && status === 'invoiced') {
+      // Automação 12: fatura emitida → mario + cliente
+      const { data: project } = await supabase
+        .from('projects')
+        .select('contract_number, client_name, client_email')
+        .eq('id', projectId)
+        .single()
+      void emailFaturaEmitida({
+        projectId,
+        contractNumber: project?.contract_number ?? '',
+        clientName: project?.client_name ?? '',
+        clientEmail: project?.client_email ?? null,
+        invoiceNumber: invoice_number,
+        billingStage,
+        amount,
+        paymentDueDate: payment_due_date,
+      })
+    }
+
     return { error: null, success: true }
   } catch (e: unknown) {
     return { error: (e as Error).message, success: false }
