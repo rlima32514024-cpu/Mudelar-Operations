@@ -22,6 +22,8 @@ export async function verifyMeasurements(
       new Date().toISOString().split('T')[0]
     const measurements_notes = (formData.get('measurements_notes') as string)?.trim() || null
     const layout_retificado_url = (formData.get('layout_retificado_url') as string)?.trim() || null
+    const initial_measurements_photos_url = (formData.get('initial_measurements_photos_url') as string)?.trim() || null
+    const procurement_list_url = (formData.get('procurement_list_url') as string)?.trim() || null
 
     const { error } = await supabase
       .from('projects')
@@ -30,6 +32,12 @@ export async function verifyMeasurements(
         measurements_verified_date,
         measurements_notes,
         layout_retificado_url,
+        initial_measurements_photos_url,
+        ...(procurement_list_url && {
+          procurement_list_url,
+          procurement_list_uploaded_date: measurements_verified_date,
+          procurement_status: 'submitted',
+        }),
         general_status: '3_aguarda_compras',
       })
       .eq('id', projectId)

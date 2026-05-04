@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getProfile } from '@/lib/supabase/queries'
 import { PriorityBadge } from '@/components/shared/priority-badge'
 import { CreateIssueDialog } from '@/components/issues/create-issue-dialog'
 import { ResolveIssueDialog } from '@/components/issues/resolve-issue-dialog'
@@ -22,13 +23,20 @@ const ISSUE_STATUS_COLORS: Record<IssueStatus, string> = {
 
 export default async function GustavoDashboard() {
   const supabase = await createClient()
+  const profile = await getProfile()
+
+  const issuesQuery = supabase
+    .from('issues_view')
+    .select('*')
+    .order('priority', { ascending: false })
+    .order('created_at', { ascending: false })
+
+  if (profile?.responsible_party_id) {
+    issuesQuery.eq('assigned_to_id', profile.responsible_party_id)
+  }
 
   const [{ data: issues }, { data: projects }, { data: responsibleParties }] = await Promise.all([
-    supabase
-      .from('issues_view')
-      .select('*')
-      .order('priority', { ascending: false })
-      .order('created_at', { ascending: false }),
+    issuesQuery,
     supabase
       .from('projects')
       .select('id, contract_number, client_name')

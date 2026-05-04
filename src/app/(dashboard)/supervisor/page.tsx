@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation'
 import { StatusBadge } from '@/components/shared/status-badge'
 import { PhaseBadge } from '@/components/shared/phase-badge'
 import { UpdatePhaseDialog } from '@/components/supervisor/update-phase-dialog'
-import { MarkCompletedButton } from '@/components/supervisor/mark-completed-button'
+import { MarkCompletedDialog } from '@/components/supervisor/mark-completed-dialog'
 import { MarkMilestoneReadyButton } from '@/components/supervisor/mark-milestone-ready-button'
 import { CreateApontamentoDialog } from '@/components/supervisor/create-apontamento-dialog'
 import { VerifyMeasurementsDialog } from '@/components/supervisor/verify-measurements-dialog'
@@ -153,17 +153,19 @@ export default async function SupervisorDashboard() {
                   <UpdatePhaseDialog
                     projectId={p.id}
                     currentPhase={p.current_phase as CurrentPhase}
+                    contractNumber={p.contract_number}
                   />
                 )}
                 {p.current_phase === 'not_started' && (
                   <UpdatePhaseDialog
                     projectId={p.id}
                     currentPhase={'1_preparacao_demolicoes' as CurrentPhase}
+                    contractNumber={p.contract_number}
                   />
                 )}
                 <CreateApontamentoDialog projectId={p.id} />
                 {canMarkCompleted && (
-                  <MarkCompletedButton projectId={p.id} />
+                  <MarkCompletedDialog projectId={p.id} contractNumber={p.contract_number} />
                 )}
               </div>
             </div>

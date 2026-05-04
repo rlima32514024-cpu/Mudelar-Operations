@@ -26,7 +26,15 @@ export default async function SofiaDashboard() {
           <h1 className="text-2xl font-bold text-gray-900">As Obras</h1>
           <p className="text-sm text-gray-500 mt-0.5">Apoio ao cliente</p>
         </div>
-        <CreateProjectDialog workModels={safeWorkModels} supervisors={[]} />
+        <div className="flex items-center gap-3">
+          <Link
+            href="/sofia/pos-venda"
+            className="text-sm text-gray-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors"
+          >
+            Pós-venda →
+          </Link>
+          <CreateProjectDialog workModels={safeWorkModels} supervisors={[]} />
+        </div>
       </div>
 
       <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">

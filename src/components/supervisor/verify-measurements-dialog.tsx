@@ -85,10 +85,24 @@ export function VerifyMeasurementsDialog({ projectId, contractNumber }: VerifyMe
             </div>
 
             <FileUploadInput
+              name="initial_measurements_photos_url"
+              storagePath={`measurements/${contractNumber}`}
+              accept=".jpg,.jpeg,.png,.heic"
+              label="Foto do levantamento"
+            />
+
+            <FileUploadInput
               name="layout_retificado_url"
               storagePath={`layout/${contractNumber}`}
               accept=".pdf,.dwg,.jpg,.jpeg,.png"
               label="Layout retificado"
+            />
+
+            <FileUploadInput
+              name="procurement_list_url"
+              storagePath={`procurement/${contractNumber}`}
+              accept=".pdf,.xls,.xlsx,.doc,.docx"
+              label="Mapa de necessidades"
             />
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-xs text-blue-700">

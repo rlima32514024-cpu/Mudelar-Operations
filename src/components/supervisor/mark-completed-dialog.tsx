@@ -2,31 +2,23 @@
 
 import { useActionState, useState, useEffect, useCallback } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { RefreshCw, X } from 'lucide-react'
-import { updatePhase, type ActionResult } from '@/app/actions/projects'
+import { Flag, X } from 'lucide-react'
+import { markCompleted } from '@/app/actions/projects'
 import { FileUploadInput } from '@/components/shared/file-upload-input'
-import { CURRENT_PHASE_LABELS, type CurrentPhase } from '@/types'
-
-const PHASES: CurrentPhase[] = [
-  '1_preparacao_demolicoes',
-  '2_infraestruturas',
-  '3_revestimentos',
-  '4_montagem_final',
-]
+import type { ActionResult } from '@/app/actions/projects'
 
 const initialState: ActionResult = { error: null, success: false }
 
-interface UpdatePhaseDialogProps {
+interface MarkCompletedDialogProps {
   projectId: string
-  currentPhase: CurrentPhase
   contractNumber: string
 }
 
-export function UpdatePhaseDialog({ projectId, currentPhase, contractNumber }: UpdatePhaseDialogProps) {
+export function MarkCompletedDialog({ projectId, contractNumber }: MarkCompletedDialogProps) {
   const [open, setOpen] = useState(false)
 
   const boundAction = useCallback(
-    (prev: ActionResult, formData: FormData) => updatePhase(projectId, prev, formData),
+    (prev: ActionResult, formData: FormData) => markCompleted(projectId, prev, formData),
     [projectId]
   )
 
@@ -39,9 +31,9 @@ export function UpdatePhaseDialog({ projectId, currentPhase, contractNumber }: U
   return (
     <Dialog.Root open={open} onOpenChange={setOpen}>
       <Dialog.Trigger asChild>
-        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 text-white text-xs font-medium rounded-lg hover:bg-indigo-700 transition-colors">
-          <RefreshCw className="w-3.5 h-3.5" />
-          Actualizar Fase
+        <button className="flex items-center gap-1.5 px-3 py-1.5 bg-teal-600 text-white text-xs font-medium rounded-lg hover:bg-teal-700 transition-colors">
+          <Flag className="w-3.5 h-3.5" />
+          Concluir Obra
         </button>
       </Dialog.Trigger>
 
@@ -50,7 +42,7 @@ export function UpdatePhaseDialog({ projectId, currentPhase, contractNumber }: U
         <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md bg-white rounded-xl shadow-xl z-50 p-6 max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
             <Dialog.Title className="text-base font-semibold text-gray-900">
-              Actualizar Fase da Obra
+              Concluir Obra
             </Dialog.Title>
             <Dialog.Close asChild>
               <button className="text-gray-400 hover:text-gray-600 transition-colors">
@@ -61,40 +53,29 @@ export function UpdatePhaseDialog({ projectId, currentPhase, contractNumber }: U
 
           <form action={formAction} className="space-y-4">
             <div>
-              <label htmlFor="up-phase" className="block text-sm font-medium text-gray-700 mb-1">
-                Fase actual
+              <label htmlFor="mc-date" className="block text-sm font-medium text-gray-700 mb-1">
+                Data de conclusão <span className="text-red-500">*</span>
               </label>
-              <select
-                id="up-phase"
-                name="current_phase"
-                defaultValue={currentPhase}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 bg-white"
-              >
-                {PHASES.map((phase) => (
-                  <option key={phase} value={phase}>{CURRENT_PHASE_LABELS[phase]}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="up-notes" className="block text-sm font-medium text-gray-700 mb-1">
-                Notas da fase
-              </label>
-              <textarea
-                id="up-notes"
-                name="notes"
-                rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
-                placeholder="Notas opcionais sobre esta fase..."
+              <input
+                id="mc-date"
+                name="actual_completion_date"
+                type="date"
+                defaultValue={new Date().toISOString().split('T')[0]}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900"
               />
             </div>
 
             <FileUploadInput
-              name="photo_url"
-              storagePath={`phases/${contractNumber}`}
-              accept=".jpg,.jpeg,.png,.heic,.webp"
-              label="Foto da fase"
+              name="auto_entrega_url"
+              storagePath={`delivery/${contractNumber}`}
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              label="Auto de entrega"
             />
+
+            <div className="bg-teal-50 border border-teal-200 rounded-lg p-3 text-xs text-teal-700">
+              A obra avança para <strong>Concluída</strong> e a Ana é notificada para emitir fatura final.
+            </div>
 
             {state.error && (
               <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{state.error}</p>
@@ -112,9 +93,9 @@ export function UpdatePhaseDialog({ projectId, currentPhase, contractNumber }: U
               <button
                 type="submit"
                 disabled={isPending}
-                className="flex-1 py-2 px-4 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className="flex-1 py-2 px-4 bg-teal-600 text-white text-sm font-medium rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors"
               >
-                {isPending ? 'A guardar...' : 'Guardar'}
+                {isPending ? 'A concluir...' : 'Confirmar conclusão'}
               </button>
             </div>
           </form>

@@ -341,6 +341,7 @@ export async function updatePhase(
 
     const current_phase = formData.get('current_phase') as CurrentPhase
     const notes = (formData.get('notes') as string)?.trim() || null
+    const photo_url = (formData.get('photo_url') as string)?.trim() || null
 
     const updateData: ProjectUpdate = { current_phase }
 
@@ -349,6 +350,12 @@ export async function updatePhase(
       else if (current_phase === '2_infraestruturas') updateData.notes_phase_2 = notes
       else if (current_phase === '3_revestimentos') updateData.notes_phase_3 = notes
       else if (current_phase === '4_montagem_final') updateData.notes_phase_4 = notes
+    }
+    if (photo_url) {
+      if (current_phase === '1_preparacao_demolicoes') updateData.photos_phase_1_url = photo_url
+      else if (current_phase === '2_infraestruturas') updateData.photos_phase_2_url = photo_url
+      else if (current_phase === '3_revestimentos') updateData.photos_phase_3_url = photo_url
+      else if (current_phase === '4_montagem_final') updateData.photos_phase_4_url = photo_url
     }
 
     const { error } = await supabase.from('projects').update(updateData).eq('id', projectId)
@@ -388,20 +395,27 @@ export async function updatePhase(
   }
 }
 
-export async function markCompleted(projectId: string): Promise<ActionResult> {
+export async function markCompleted(
+  projectId: string,
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
   try {
     const supabase = await createClient()
     const profile = await getProfile()
     if (!profile) return { error: 'Não autenticado', success: false }
 
     const today = new Date().toISOString().split('T')[0]
+    const actual_completion_date = (formData.get('actual_completion_date') as string) || today
+    const auto_entrega_url = (formData.get('auto_entrega_url') as string)?.trim() || null
 
     const { error } = await supabase
       .from('projects')
       .update({
         general_status: '6_concluida',
-        actual_completion_date: today,
+        actual_completion_date,
         current_phase: 'completed',
+        ...(auto_entrega_url && { auto_entrega_url }),
       })
       .eq('id', projectId)
 
@@ -435,6 +449,85 @@ export async function markCompleted(projectId: string): Promise<ActionResult> {
       }),
     ])
 
+    return { error: null, success: true }
+  } catch (e: unknown) {
+    return { error: (e as Error).message, success: false }
+  }
+}
+
+export async function updateExtras(
+  projectId: string,
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  try {
+    const supabase = await createClient()
+    const profile = await getProfile()
+    if (!profile) return { error: 'Não autenticado', success: false }
+
+    const orcamento_extra_descricao = (formData.get('orcamento_extra_descricao') as string)?.trim() || null
+    const orcamento_extra_valor = formData.get('orcamento_extra_valor')
+      ? parseFloat(formData.get('orcamento_extra_valor') as string)
+      : null
+    const orcamento_extra_estado = (formData.get('orcamento_extra_estado') as string) || null
+
+    const { error } = await supabase
+      .from('projects')
+      .update({ orcamento_extra_descricao, orcamento_extra_valor, orcamento_extra_estado })
+      .eq('id', projectId)
+
+    if (error) return { error: error.message, success: false }
+    revalidatePath('/susana')
+    revalidatePath(`/obras/${projectId}`)
+    return { error: null, success: true }
+  } catch (e: unknown) {
+    return { error: (e as Error).message, success: false }
+  }
+}
+
+export async function updateFaturaEquipa(
+  projectId: string,
+  _prev: ActionResult,
+  formData: FormData
+): Promise<ActionResult> {
+  try {
+    const supabase = await createClient()
+    const profile = await getProfile()
+    if (!profile) return { error: 'Não autenticado', success: false }
+
+    const has_extras = formData.get('has_extras') === 'on'
+    const extras_descricao = (formData.get('extras_descricao') as string)?.trim() || null
+    const fatura_equipa_enviada_ana = formData.get('fatura_equipa_enviada_ana') === 'on'
+
+    const { error } = await supabase
+      .from('projects')
+      .update({ has_extras, extras_descricao, fatura_equipa_enviada_ana })
+      .eq('id', projectId)
+
+    if (error) return { error: error.message, success: false }
+    revalidatePath('/susana')
+    revalidatePath('/ana')
+    revalidatePath(`/obras/${projectId}`)
+    return { error: null, success: true }
+  } catch (e: unknown) {
+    return { error: (e as Error).message, success: false }
+  }
+}
+
+export async function updateFaturaEquipaPaga(projectId: string): Promise<ActionResult> {
+  try {
+    const supabase = await createClient()
+    const profile = await getProfile()
+    if (!profile) return { error: 'Não autenticado', success: false }
+
+    const { error } = await supabase
+      .from('projects')
+      .update({ fatura_equipa_paga: true })
+      .eq('id', projectId)
+
+    if (error) return { error: error.message, success: false }
+    revalidatePath('/ana')
+    revalidatePath(`/obras/${projectId}`)
     return { error: null, success: true }
   } catch (e: unknown) {
     return { error: (e as Error).message, success: false }

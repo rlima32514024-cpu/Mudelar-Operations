@@ -121,6 +121,11 @@ export type Database = {
           notes_phase_3: string | null
           notes_phase_4: string | null
           auto_entrega_url: string | null
+          initial_measurements_photos_url: string | null
+          photos_phase_1_url: string | null
+          photos_phase_2_url: string | null
+          photos_phase_3_url: string | null
+          photos_phase_4_url: string | null
           has_extras: boolean
           extras_descricao: string | null
           fatura_equipa_enviada_ana: boolean
@@ -166,6 +171,11 @@ export type Database = {
           notes_phase_3?: string | null
           notes_phase_4?: string | null
           auto_entrega_url?: string | null
+          initial_measurements_photos_url?: string | null
+          photos_phase_1_url?: string | null
+          photos_phase_2_url?: string | null
+          photos_phase_3_url?: string | null
+          photos_phase_4_url?: string | null
           has_extras?: boolean
           extras_descricao?: string | null
           fatura_equipa_enviada_ana?: boolean
@@ -209,6 +219,11 @@ export type Database = {
           notes_phase_3?: string | null
           notes_phase_4?: string | null
           auto_entrega_url?: string | null
+          initial_measurements_photos_url?: string | null
+          photos_phase_1_url?: string | null
+          photos_phase_2_url?: string | null
+          photos_phase_3_url?: string | null
+          photos_phase_4_url?: string | null
           has_extras?: boolean
           extras_descricao?: string | null
           fatura_equipa_enviada_ana?: boolean
