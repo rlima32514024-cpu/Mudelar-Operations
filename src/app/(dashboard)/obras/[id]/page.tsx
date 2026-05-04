@@ -20,6 +20,20 @@ import type {
 } from '@/types'
 import { MILESTONE_STATUS_LABELS, CURRENT_PHASE_LABELS } from '@/types'
 
+const AUDIT_ACTION_LABELS: Record<string, string> = {
+  project_created: 'Obra criada',
+  supervisor_assigned: 'Supervisor atribuído',
+  team_assigned: 'Equipa atribuída',
+  procurement_updated: 'Compras atualizadas',
+  phase_updated: 'Fase atualizada',
+  project_completed: 'Obra concluída',
+  issue_created: 'Issue criado',
+  issue_resolved: 'Issue resolvido',
+  milestone_ready: 'Marco marcado pronto',
+  milestone_validated: 'Marco validado',
+  milestone_updated: 'Marco atualizado',
+}
+
 const ISSUE_STATUS_LABELS: Record<IssueStatus, string> = {
   open: 'Aberto',
   in_progress: 'Em progresso',
@@ -59,6 +73,7 @@ export default async function ObraDetailPage({ params }: ObraDetailPageProps) {
     { data: issues },
     { data: apontamentos },
     { data: parties },
+    { data: auditLog },
   ] = await Promise.all([
     supabase
       .from('projects_view')
@@ -84,6 +99,12 @@ export default async function ObraDetailPage({ params }: ObraDetailPageProps) {
     supabase
       .from('responsible_parties')
       .select('id, name'),
+    supabase
+      .from('project_audit_log')
+      .select('id, user_name, action, details, created_at')
+      .eq('project_id', id)
+      .order('created_at', { ascending: false })
+      .limit(30),
   ])
 
   if (!project) notFound()
@@ -91,6 +112,7 @@ export default async function ObraDetailPage({ params }: ObraDetailPageProps) {
   const safeMilestones = milestones ?? []
   const safeIssues = issues ?? []
   const safeApontamentos = apontamentos ?? []
+  const safeAuditLog = auditLog ?? []
   const partiesMap = new Map((parties ?? []).map((p) => [p.id, p.name]))
 
   const MILESTONE_STATUS_COLORS: Record<MilestoneStatus, string> = {
@@ -296,6 +318,41 @@ export default async function ObraDetailPage({ params }: ObraDetailPageProps) {
           </div>
         </section>
       )}
+      {/* Audit Log */}
+      {safeAuditLog.length > 0 && (
+        <section className="bg-white border border-gray-200 rounded-xl p-5">
+          <h2 className="text-sm font-semibold text-gray-900 mb-4">
+            Histórico de auditoria ({safeAuditLog.length})
+          </h2>
+          <ol className="relative border-l border-gray-200 ml-2 space-y-0">
+            {safeAuditLog.map((entry) => (
+              <li key={entry.id} className="mb-4 ml-4 last:mb-0">
+                <div className="absolute -left-1.5 mt-1.5 w-3 h-3 rounded-full bg-gray-300 border-2 border-white" />
+                <div className="flex items-baseline gap-2 flex-wrap">
+                  <span className="text-xs font-semibold text-gray-900">
+                    {AUDIT_ACTION_LABELS[entry.action] ?? entry.action}
+                  </span>
+                  {entry.user_name && (
+                    <span className="text-xs text-gray-500">por {entry.user_name}</span>
+                  )}
+                  <span className="text-xs text-gray-400 ml-auto">
+                    {formatDate(entry.created_at)}
+                  </span>
+                </div>
+                {entry.details && Object.keys(entry.details).length > 0 && (
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {Object.entries(entry.details as Record<string, unknown>)
+                      .filter(([, v]) => v != null && v !== '')
+                      .map(([k, v]) => `${k}: ${v}`)
+                      .join(' · ')}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
+
     </main>
   )
 }

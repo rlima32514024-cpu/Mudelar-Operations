@@ -339,6 +339,52 @@ export type Database = {
         }
         Relationships: []
       }
+      project_audit_log: {
+        Row: {
+          id: string
+          project_id: string
+          user_id: string | null
+          user_name: string | null
+          action: string
+          details: { [key: string]: Json } | null
+          created_at: string
+        }
+        Insert: {
+          project_id: string
+          user_id?: string | null
+          user_name?: string | null
+          action: string
+          details?: { [key: string]: Json } | null
+        }
+        Update: {
+          details?: { [key: string]: Json } | null
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          id: string
+          recipient_role: string
+          message: string
+          action_type: string
+          link_url: string | null
+          project_id: string | null
+          read_by: string[]
+          created_at: string
+        }
+        Insert: {
+          recipient_role: string
+          message: string
+          action_type: string
+          link_url?: string | null
+          project_id?: string | null
+          read_by?: string[]
+        }
+        Update: {
+          read_by?: string[]
+        }
+        Relationships: []
+      }
       apontamentos: {
         Row: {
           id: string
@@ -489,6 +535,10 @@ export type Database = {
       get_user_role: {
         Args: Record<string, never>
         Returns: string
+      }
+      mark_notification_read: {
+        Args: { p_notification_id: string }
+        Returns: undefined
       }
     }
     Enums: {

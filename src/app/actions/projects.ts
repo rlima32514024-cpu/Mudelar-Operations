@@ -3,6 +3,8 @@
 import { revalidatePath } from 'next/cache'
 import { createClient } from '@/lib/supabase/server'
 import { getProfile } from '@/lib/supabase/queries'
+import { logAudit } from '@/lib/audit'
+import { createNotification } from '@/lib/notifications'
 import {
   emailObraCriada,
   emailSupervisorAtribuido,
@@ -77,17 +79,25 @@ export async function createProject(
     revalidatePath('/mario')
     revalidatePath('/sofia')
 
-    // Automação 1: obra criada → mario
-    void emailObraCriada({
-      projectId: data.id,
-      contractNumber,
-      clientName: client_name,
-      address: address ?? null,
-      workType: work_type,
-      totalValue: total_project_value,
-    })
+    const projectId = data.id
 
-    return { error: null, success: true, projectId: data.id }
+    void Promise.all([
+      logAudit(supabase, projectId, profile.id, profile.full_name, 'project_created', {
+        contract_number: contractNumber,
+        client_name,
+        work_type,
+      }),
+      emailObraCriada({ projectId, contractNumber, clientName: client_name, address: address ?? null, workType: work_type, totalValue: total_project_value }),
+      createNotification({
+        recipientRole: 'mario',
+        message: `Nova obra criada: ${contractNumber} — ${client_name}`,
+        actionType: 'project_update',
+        linkUrl: `/obras/${projectId}`,
+        projectId,
+      }),
+    ])
+
+    return { error: null, success: true, projectId }
   } catch (e: unknown) {
     return { error: (e as Error).message, success: false }
   }
@@ -120,21 +130,34 @@ export async function assignSupervisor(
     revalidatePath('/mario')
     revalidatePath('/obras')
 
-    // Automações 2+3: supervisor atribuído + retificação marcada → supervisor
     if (initial_supervisor_id) {
       const [{ data: project }, { data: supervisor }] = await Promise.all([
         supabase.from('projects').select('contract_number, client_name, address').eq('id', projectId).single(),
         supabase.from('responsible_parties').select('name, email').eq('id', initial_supervisor_id).single(),
       ])
-      void emailSupervisorAtribuido({
-        projectId,
-        contractNumber: project?.contract_number ?? '',
-        clientName: project?.client_name ?? '',
-        address: project?.address ?? null,
-        supervisorEmail: supervisor?.email ?? null,
-        supervisorName: supervisor?.name ?? null,
-        dataRetificacao: data_retificacao_marcada,
-      })
+
+      void Promise.all([
+        logAudit(supabase, projectId, profile.id, profile.full_name, 'supervisor_assigned', {
+          supervisor_name: supervisor?.name,
+          data_retificacao: data_retificacao_marcada,
+        }),
+        emailSupervisorAtribuido({
+          projectId,
+          contractNumber: project?.contract_number ?? '',
+          clientName: project?.client_name ?? '',
+          address: project?.address ?? null,
+          supervisorEmail: supervisor?.email ?? null,
+          supervisorName: supervisor?.name ?? null,
+          dataRetificacao: data_retificacao_marcada,
+        }),
+        createNotification({
+          recipientRole: 'supervisor',
+          message: `Nova obra atribuída: ${project?.contract_number} — ${project?.client_name}`,
+          actionType: 'project_update',
+          linkUrl: `/obras/${projectId}`,
+          projectId,
+        }),
+      ])
     }
 
     return { error: null, success: true }
@@ -175,20 +198,33 @@ export async function assignTeam(
     revalidatePath('/mario')
     revalidatePath('/obras')
 
-    // Automação 7: obra iniciada → cliente
     const { data: project } = await supabase
       .from('projects')
       .select('contract_number, client_name, client_email')
       .eq('id', projectId)
       .single()
 
-    void emailObraIniciada({
-      projectId,
-      contractNumber: project?.contract_number ?? '',
-      clientName: project?.client_name ?? '',
-      clientEmail: project?.client_email ?? null,
-      plannedStartDate: planned_start_date,
-    })
+    void Promise.all([
+      logAudit(supabase, projectId, profile.id, profile.full_name, 'team_assigned', {
+        supervisor_id: assigned_supervisor_id,
+        equipa_id: equipa_obras_id,
+        planned_start_date,
+      }),
+      emailObraIniciada({
+        projectId,
+        contractNumber: project?.contract_number ?? '',
+        clientName: project?.client_name ?? '',
+        clientEmail: project?.client_email ?? null,
+        plannedStartDate: planned_start_date,
+      }),
+      createNotification({
+        recipientRole: 'mario',
+        message: `Obra iniciada: ${project?.contract_number} — ${project?.client_name}`,
+        actionType: 'project_update',
+        linkUrl: `/obras/${projectId}`,
+        projectId,
+      }),
+    ])
 
     return { error: null, success: true }
   } catch (e: unknown) {
@@ -220,31 +256,38 @@ export async function updateProcurement(
       updateData.general_status = '4_aguarda_arranque'
     }
 
-    const { error } = await supabase
-      .from('projects')
-      .update(updateData)
-      .eq('id', projectId)
-
+    const { error } = await supabase.from('projects').update(updateData).eq('id', projectId)
     if (error) return { error: error.message, success: false }
 
     revalidatePath('/susana')
     revalidatePath('/mario')
 
+    void logAudit(supabase, projectId, profile.id, profile.full_name, 'procurement_updated', {
+      procurement_status,
+    })
+
     if (procurement_status === 'submitted') {
-      // Automação 5: lista de compras submetida → susana
       const { data: project } = await supabase
         .from('projects')
         .select('contract_number, client_name')
         .eq('id', projectId)
         .single()
-      void emailListaComprasSubmetida({
-        projectId,
-        contractNumber: project?.contract_number ?? '',
-        clientName: project?.client_name ?? '',
-        listUrl: procurement_list_url,
-      })
+      void Promise.all([
+        emailListaComprasSubmetida({
+          projectId,
+          contractNumber: project?.contract_number ?? '',
+          clientName: project?.client_name ?? '',
+          listUrl: procurement_list_url,
+        }),
+        createNotification({
+          recipientRole: 'susana',
+          message: `Lista de compras submetida: ${project?.contract_number}`,
+          actionType: 'project_update',
+          linkUrl: `/obras/${projectId}`,
+          projectId,
+        }),
+      ])
     } else if (procurement_status === 'received') {
-      // Automação 6: compras recebidas → mario + supervisor
       const { data: project } = await supabase
         .from('projects')
         .select('contract_number, client_name, initial_supervisor_id')
@@ -253,20 +296,29 @@ export async function updateProcurement(
 
       let supervisorEmail: string | null = null
       if (project?.initial_supervisor_id) {
-        const { data: supervisor } = await supabase
+        const { data: sup } = await supabase
           .from('responsible_parties')
           .select('email')
           .eq('id', project.initial_supervisor_id)
           .single()
-        supervisorEmail = supervisor?.email ?? null
+        supervisorEmail = sup?.email ?? null
       }
 
-      void emailComprasRecebidas({
-        projectId,
-        contractNumber: project?.contract_number ?? '',
-        clientName: project?.client_name ?? '',
-        supervisorEmail,
-      })
+      void Promise.all([
+        emailComprasRecebidas({
+          projectId,
+          contractNumber: project?.contract_number ?? '',
+          clientName: project?.client_name ?? '',
+          supervisorEmail,
+        }),
+        createNotification({
+          recipientRole: 'mario',
+          message: `Compras recebidas — obra pronta a arrancar: ${project?.contract_number}`,
+          actionType: 'project_update',
+          linkUrl: `/obras/${projectId}`,
+          projectId,
+        }),
+      ])
     }
 
     return { error: null, success: true }
@@ -297,29 +349,35 @@ export async function updatePhase(
       else if (current_phase === '4_montagem_final') updateData.notes_phase_4 = notes
     }
 
-    const { error } = await supabase
-      .from('projects')
-      .update(updateData)
-      .eq('id', projectId)
-
+    const { error } = await supabase.from('projects').update(updateData).eq('id', projectId)
     if (error) return { error: error.message, success: false }
 
     revalidatePath('/supervisor')
     revalidatePath('/obras')
 
-    // Automação 8: fase atualizada → mario
     if (current_phase !== 'not_started' && current_phase !== 'completed') {
       const { data: project } = await supabase
         .from('projects')
         .select('contract_number, client_name')
         .eq('id', projectId)
         .single()
-      void emailFaseAtualizada({
-        projectId,
-        contractNumber: project?.contract_number ?? '',
-        clientName: project?.client_name ?? '',
-        phase: current_phase,
-      })
+
+      void Promise.all([
+        logAudit(supabase, projectId, profile.id, profile.full_name, 'phase_updated', { phase: current_phase }),
+        emailFaseAtualizada({
+          projectId,
+          contractNumber: project?.contract_number ?? '',
+          clientName: project?.client_name ?? '',
+          phase: current_phase,
+        }),
+        createNotification({
+          recipientRole: 'mario',
+          message: `Fase atualizada em ${project?.contract_number}: ${current_phase.replace(/_/g, ' ')}`,
+          actionType: 'project_update',
+          linkUrl: `/obras/${projectId}`,
+          projectId,
+        }),
+      ])
     }
 
     return { error: null, success: true }
@@ -350,19 +408,30 @@ export async function markCompleted(projectId: string): Promise<ActionResult> {
     revalidatePath('/supervisor')
     revalidatePath('/mario')
 
-    // Automação 9: obra concluída → cliente + mario
     const { data: project } = await supabase
       .from('projects')
       .select('contract_number, client_name, client_email')
       .eq('id', projectId)
       .single()
 
-    void emailObraConcluida({
-      projectId,
-      contractNumber: project?.contract_number ?? '',
-      clientName: project?.client_name ?? '',
-      clientEmail: project?.client_email ?? null,
-    })
+    void Promise.all([
+      logAudit(supabase, projectId, profile.id, profile.full_name, 'project_completed', {
+        completion_date: today,
+      }),
+      emailObraConcluida({
+        projectId,
+        contractNumber: project?.contract_number ?? '',
+        clientName: project?.client_name ?? '',
+        clientEmail: project?.client_email ?? null,
+      }),
+      createNotification({
+        recipientRole: 'mario',
+        message: `Obra concluída: ${project?.contract_number} — ${project?.client_name}`,
+        actionType: 'project_update',
+        linkUrl: `/obras/${projectId}`,
+        projectId,
+      }),
+    ])
 
     return { error: null, success: true }
   } catch (e: unknown) {

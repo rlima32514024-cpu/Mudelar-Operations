@@ -9,6 +9,7 @@ import type {
   RiskChartData,
   FinancialChartData,
 } from '@/components/dashboard/mario-charts'
+import { Download, CalendarRange } from 'lucide-react'
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog'
 import { AssignSupervisorDialog } from '@/components/projects/assign-supervisor-dialog'
 import { AssignTeamDialog } from '@/components/projects/assign-team-dialog'
@@ -185,7 +186,23 @@ export default async function MarioDashboard() {
           <h1 className="text-2xl font-bold text-gray-900">Gestão de Obras</h1>
           <p className="text-sm text-gray-500 mt-0.5">Painel do gestor</p>
         </div>
-        <CreateProjectDialog workModels={safeWorkModels} supervisors={supervisors} />
+        <div className="flex items-center gap-2">
+          <Link
+            href="/mario/gantt"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <CalendarRange className="w-4 h-4" />
+            Gantt
+          </Link>
+          <a
+            href="/api/export/projects"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Exportar CSV
+          </a>
+          <CreateProjectDialog workModels={safeWorkModels} supervisors={supervisors} />
+        </div>
       </div>
 
       {/* ── KPIs ─────────────────────────────────────────────────────────────── */}

@@ -5,6 +5,7 @@ import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { LogOut, UserCircle, Users, ChevronDown } from 'lucide-react'
 import { signOut } from '@/app/actions/auth'
 import { useProfile } from '@/components/providers/profile-provider'
+import { NotificationBell } from '@/components/layout/notification-bell'
 import { ROLE_LABELS } from '@/types'
 import type { UserRole } from '@/types'
 
@@ -34,6 +35,10 @@ export function Header() {
           Mudelar Operations
         </span>
       </div>
+
+      {/* Right side */}
+      <div className="flex items-center gap-1">
+        <NotificationBell />
 
       {/* User menu */}
       <DropdownMenu.Root>
@@ -106,6 +111,7 @@ export function Header() {
           </DropdownMenu.Content>
         </DropdownMenu.Portal>
       </DropdownMenu.Root>
+      </div>
     </header>
   )
 }
