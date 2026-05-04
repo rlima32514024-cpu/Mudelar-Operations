@@ -23,18 +23,19 @@ create table if not exists project_audit_log (
   created_at timestamptz default now() not null
 );
 
-create index if not exists project_audit_log_project_id_idx on project_audit_log(project_id);
-create index if not exists project_audit_log_created_at_idx on project_audit_log(created_at desc);
+create index if not exists project_audit_log_project_id_idx
+  on project_audit_log(project_id);
+
+create index if not exists project_audit_log_created_at_idx
+  on project_audit_log(created_at desc);
 
 alter table project_audit_log enable row level security;
 
--- Authenticated users can insert their own actions
 create policy "Authenticated users can insert audit logs"
   on project_audit_log for insert
   to authenticated
   with check (true);
 
--- Any authenticated user can read logs (internal tool)
 create policy "Authenticated users can read audit logs"
   on project_audit_log for select
   to authenticated
@@ -44,17 +45,20 @@ create policy "Authenticated users can read audit logs"
 
 create table if not exists notifications (
   id uuid primary key default gen_random_uuid(),
-  recipient_role text not null,    -- UserRole or 'all'
+  recipient_role text not null,
   message text not null,
-  action_type text not null,       -- 'project_update', 'issue', 'milestone', 'sla_alert'
+  action_type text not null,
   link_url text,
   project_id uuid references projects(id) on delete set null,
   read_by uuid[] default '{}',
   created_at timestamptz default now() not null
 );
 
-create index if not exists notifications_recipient_role_idx on notifications(recipient_role);
-create index if not exists notifications_created_at_idx on notifications(created_at desc);
+create index if not exists notifications_recipient_role_idx
+  on notifications(recipient_role);
+
+create index if not exists notifications_created_at_idx
+  on notifications(created_at desc);
 
 alter table notifications enable row level security;
 
@@ -69,7 +73,7 @@ create policy "Users can mark notifications read"
   using (recipient_role = get_user_role() or recipient_role = 'all')
   with check (true);
 
--- Safe array-append function (avoids duplicates)
+-- Safe array-append (avoids duplicate read markers)
 create or replace function mark_notification_read(p_notification_id uuid)
 returns void
 language sql security definer as $$

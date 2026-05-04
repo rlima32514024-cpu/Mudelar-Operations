@@ -16,12 +16,11 @@ Sistema de gestão de obras de remodelação (cozinhas e WCs) da empresa Mudelar
 - [x] Fase 2 — Schema da base de dados (CONCLUÍDA)
 - [x] Fase 3 — Autenticação e perfis (CONCLUÍDA)
 - [x] Fase 4 — Páginas por perfil (CONCLUÍDA)
-- [ ] Fase 5 — 16 automações (PRÓXIMA)
-- [ ] Fase 5 — 16 automações
-- [ ] Fase 6 — Dashboard 15 KPIs
-- [ ] Fase 7 — Funcionalidades avançadas
-- [ ] Fase 8 — Deploy
-- [ ] Fase 9 — Testes
+- [x] Fase 5 — 16 automações (CONCLUÍDA)
+- [x] Fase 6 — Dashboard 15 KPIs (CONCLUÍDA)
+- [x] Fase 7 — Funcionalidades avançadas (CONCLUÍDA)
+- [x] Fase 8 — Deploy (CONCLUÍDA)
+- [ ] Fase 9 — Testes (PRÓXIMA)
 - [ ] Fase 10 — Migração Airtable
 
 ## Equipa / roles
