@@ -9,10 +9,11 @@ import type {
   RiskChartData,
   FinancialChartData,
 } from '@/components/dashboard/mario-charts'
-import { Download, CalendarRange } from 'lucide-react'
+import { Download, CalendarRange, ClipboardList } from 'lucide-react'
 import { CreateProjectDialog } from '@/components/projects/create-project-dialog'
 import { AssignSupervisorDialog } from '@/components/projects/assign-supervisor-dialog'
 import { AssignTeamDialog } from '@/components/projects/assign-team-dialog'
+import { ObrasFilterTable } from '@/components/mario/obras-filter-table'
 import { formatDate, formatCurrency } from '@/lib/utils'
 import type {
   GeneralStatus,
@@ -187,6 +188,13 @@ export default async function MarioDashboard() {
           <p className="text-sm text-gray-500 mt-0.5">Painel do gestor</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/mario/apontamentos"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <ClipboardList className="w-4 h-4" />
+            Apontamentos
+          </Link>
           <Link
             href="/mario/gantt"
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
@@ -371,64 +379,11 @@ export default async function MarioDashboard() {
       {/* ── Todas as obras ───────────────────────────────────────────────────── */}
       <section>
         <h2 className="text-base font-semibold text-gray-900 mb-3">Todas as obras</h2>
-        <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-gray-50 border-b border-gray-200">
-                <tr>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Contrato</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Cliente</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Tipo</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Estado</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Risco</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Supervisor</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wide">Valor</th>
-                  <th className="px-4 py-3"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {safeProjects.map((p) => (
-                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-4 py-3 font-medium text-gray-900">{p.contract_number}</td>
-                    <td className="px-4 py-3 text-gray-700">{p.client_name}</td>
-                    <td className="px-4 py-3 text-gray-500">{p.work_type}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={p.general_status as GeneralStatus} />
-                    </td>
-                    <td className="px-4 py-3">
-                      {p.start_risk_level ? (
-                        <RiskBadge risk={p.start_risk_level as StartRiskLevel} />
-                      ) : (
-                        '—'
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500">
-                      {p.assigned_supervisor_id
-                        ? (partiesMap.get(p.assigned_supervisor_id) ?? '—')
-                        : '—'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">{formatCurrency(p.total_project_value)}</td>
-                    <td className="px-4 py-3">
-                      <Link
-                        href={`/obras/${p.id}`}
-                        className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-                      >
-                        Ver
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-                {safeProjects.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-400">
-                      Sem obras registadas
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <ObrasFilterTable
+          projects={safeProjects}
+          supervisorsMap={partiesMap}
+          supervisors={supervisors}
+        />
       </section>
 
       {/* ── Issues urgentes ──────────────────────────────────────────────────── */}

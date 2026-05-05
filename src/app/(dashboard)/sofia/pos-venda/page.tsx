@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { PriorityBadge } from '@/components/shared/priority-badge'
 import { CreateIssueDialog } from '@/components/issues/create-issue-dialog'
+import { ToggleAfetaPagamentoButton } from '@/components/issues/toggle-afeta-pagamento-button'
 import { formatDate } from '@/lib/utils'
 import type { IssuePriority, IssueStatus, Project } from '@/types'
 import Link from 'next/link'
@@ -122,11 +123,10 @@ export default async function SofiaPosVenda() {
                       </td>
                       <td className="px-4 py-3 text-xs text-gray-500">{formatDate(issue.sla_deadline)}</td>
                       <td className="px-4 py-3">
-                        {issue.afeta_pagamento ? (
-                          <span className="text-xs font-medium text-red-600">Sim</span>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
+                        <ToggleAfetaPagamentoButton
+                          issueId={issue.id}
+                          currentValue={issue.afeta_pagamento ?? false}
+                        />
                       </td>
                       <td className="px-4 py-3">
                         <Link href={`/obras/${issue.project_id}`} className="text-xs text-blue-600 hover:text-blue-800 font-medium">

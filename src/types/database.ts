@@ -134,6 +134,8 @@ export type Database = {
           orcamento_extra_valor: number | null
           orcamento_extra_estado: string | null
           general_status: string
+          notas_iniciais: string | null
+          project_documents_url: string | null
           created_at: string
           updated_at: string
           created_by_id: string | null
@@ -184,6 +186,8 @@ export type Database = {
           orcamento_extra_valor?: number | null
           orcamento_extra_estado?: string | null
           general_status?: string
+          notas_iniciais?: string | null
+          project_documents_url?: string | null
           created_by_id?: string | null
         }
         Update: {
@@ -232,6 +236,8 @@ export type Database = {
           orcamento_extra_valor?: number | null
           orcamento_extra_estado?: string | null
           general_status?: string
+          notas_iniciais?: string | null
+          project_documents_url?: string | null
           created_by_id?: string | null
         }
         Relationships: []

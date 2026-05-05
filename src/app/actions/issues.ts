@@ -149,6 +149,7 @@ export async function resolveIssue(
     if (error) return { error: error.message, success: false }
 
     revalidatePath('/gustavo')
+    revalidatePath('/sofia/pos-venda')
     revalidatePath('/mario')
     if (issue?.project_id) revalidatePath(`/obras/${issue.project_id}`)
 
@@ -169,6 +170,40 @@ export async function resolveIssue(
       })
     }
 
+    return { error: null, success: true }
+  } catch (e: unknown) {
+    return { error: (e as Error).message, success: false }
+  }
+}
+
+export async function toggleAfetaPagamento(
+  issueId: string,
+  currentValue: boolean
+): Promise<ActionResult> {
+  try {
+    const supabase = await createClient()
+    const profile = await getProfile()
+    if (!profile) return { error: 'Não autenticado', success: false }
+
+    const { data: issue, error: fetchError } = await supabase
+      .from('issues')
+      .select('project_id')
+      .eq('id', issueId)
+      .single()
+
+    if (fetchError) return { error: fetchError.message, success: false }
+
+    const { error } = await supabase
+      .from('issues')
+      .update({ afeta_pagamento: !currentValue })
+      .eq('id', issueId)
+
+    if (error) return { error: error.message, success: false }
+
+    revalidatePath('/sofia/pos-venda')
+    revalidatePath('/ana')
+    revalidatePath('/mario')
+    if (issue.project_id) revalidatePath(`/obras/${issue.project_id}`)
     return { error: null, success: true }
   } catch (e: unknown) {
     return { error: (e as Error).message, success: false }

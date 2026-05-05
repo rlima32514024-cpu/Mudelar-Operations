@@ -168,6 +168,19 @@ export function CreateProjectDialog({ workModels }: CreateProjectDialogProps) {
               label="Documento de contrato"
             />
 
+            <div>
+              <label htmlFor="cp-notas_iniciais" className="block text-sm font-medium text-gray-700 mb-1">
+                Notas iniciais
+              </label>
+              <textarea
+                id="cp-notas_iniciais"
+                name="notas_iniciais"
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none"
+                placeholder="Observações, pedidos especiais, contexto..."
+              />
+            </div>
+
             {state.error && (
               <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{state.error}</p>
             )}

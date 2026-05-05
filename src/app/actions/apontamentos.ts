@@ -41,6 +41,7 @@ export async function createApontamento(
 
     revalidatePath('/supervisor')
     revalidatePath('/mario')
+    revalidatePath('/mario/apontamentos')
     revalidatePath(`/obras/${project_id}`)
     return { error: null, success: true }
   } catch (e: unknown) {

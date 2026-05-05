@@ -46,6 +46,7 @@ export async function createProject(
     const total_project_value = total_project_value_raw ? parseFloat(total_project_value_raw) : null
     const work_model_id = (formData.get('work_model_id') as string) || null
     const contract_document_url = (formData.get('contract_document_url') as string)?.trim() || null
+    const notas_iniciais = (formData.get('notas_iniciais') as string)?.trim() || null
 
     if (!client_name || !address || !work_type) {
       return { error: 'Nome do cliente, morada e tipo de obra são obrigatórios', success: false }
@@ -69,6 +70,7 @@ export async function createProject(
         contract_signature_date,
         total_project_value,
         contract_document_url,
+        notas_iniciais,
         created_by_id: profile.id,
         general_status: '1_aguarda_atribuicao',
         current_phase: 'not_started',
